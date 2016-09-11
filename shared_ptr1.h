@@ -160,8 +160,8 @@ namespace details
 	struct shared_ptr1_default_deleter : public shared_ptr1_deleter_interface
 	{
 		shared_ptr1_default_deleter(T* ptr_)
+			: ptr(ptr_)
 		{
-			ptr = ptr_;
 		}
 		virtual void destroy()
 		{
@@ -182,6 +182,15 @@ namespace details
 	};
 #endif
 }
+
+template <typename T>
+class shared_ptr1;
+
+template<typename T, typename U>
+shared_ptr1<T> static_cast1(shared_ptr1<U> &);
+
+template<typename T, typename U>
+shared_ptr1<T> dynamic_cast1(shared_ptr1<U> &);
 
 template <typename T>
 class shared_ptr1
@@ -238,7 +247,10 @@ public:
 #ifdef ENABLE_TEMPLATE_OVERLOADS
 	template <typename U1> friend class shared_ptr1;
 #endif
-
+	template<typename U1, typename U2>
+	friend shared_ptr1<U1> static_cast1(shared_ptr1<U2>&);
+	template<typename U1, typename U2>
+	friend shared_ptr1<U1> dynamic_cast1(shared_ptr1<U2>&);
 private:
 	T* ptr;                                           // Pointer to the object itself
 	mutable int* ref_count;                           // Pointer to the reference counter. If NULL or *ref_count==0 => reference count=1
@@ -246,6 +258,54 @@ private:
 
 	void decrement() NOEXCEPT;
 };
+
+// -------------------------------- Supplement functions ---------------------------------------
+
+template<typename T>
+shared_ptr1<T> make_shared1()
+{
+	return shared_ptr1<T>(new T());	
+}
+
+template<typename T, typename U>
+shared_ptr1<T> static_cast1(shared_ptr1<U> &pu)
+{
+	shared_ptr1<T> pt;
+	pt.ptr = static_cast<T *> (pu.ptr);
+	if (pu.ref_count == NULL)
+		pu.ref_count = new int(1);
+	else
+		++(*pu.ref_count); // >2 references
+	pt.ref_count = pu.ref_count;
+	if (pu.p_del == NULL && !details::shared_ptr1_is_same<T, U>().value)
+	{
+		details::shared_ptr1_default_deleter<U> *pDel = new details::shared_ptr1_default_deleter<U>(pu.ptr);
+		pt.p_del = static_cast<details::shared_ptr1_deleter_interface *> (pDel);
+	}
+	else
+		pt.p_del = pu.p_del;
+	return pt;
+}
+
+template<typename T, typename U>
+shared_ptr1<T> dynamic_cast1(shared_ptr1<U> &pu)
+{
+	shared_ptr1<T> pt;
+	pt.ptr = dynamic_cast<T *>(pu.ptr);
+	if (pu.ref_count == NULL)
+		pu.ref_count = new int(1);
+	else
+		++(*pu.ref_count); // >2 references
+	pt.ref_count = pu.ref_count;
+	if (pu.p_del == NULL && !details::shared_ptr1_is_same<T, U>().value)
+	{
+		details::shared_ptr1_default_deleter<U> *pDel = new details::shared_ptr1_default_deleter<U>(pu.ptr);
+		pt.p_del = static_cast<details::shared_ptr1_deleter_interface *> (pDel);
+	}
+	else
+		pt.p_del = pu.p_del;
+	return pt;
+}
 
 // --------------------------- Implementation of general case ----------------------------------
 
@@ -320,7 +380,7 @@ inline shared_ptr1<T>::shared_ptr1(shared_ptr1<T>&& p) NOEXCEPT
 {
 	p.ptr = NULL;
 	p.ref_count = NULL;
-	p_del = NULL;
+	p.p_del = NULL;
 }
 
 template <typename T>
@@ -332,7 +392,7 @@ inline shared_ptr1<T>::shared_ptr1(shared_ptr1<U>&& p) NOEXCEPT
 {
 	p.ptr = NULL;
 	p.ref_count = NULL;
-	p_del = NULL;
+	p.p_del = NULL;
 }
 #endif
 
