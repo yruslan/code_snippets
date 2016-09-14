@@ -197,7 +197,7 @@ namespace details
 	{
 		shared_ptr_details() : ref_count(0), p_del(nullptr) {};
 		shared_ptr_details(int r, shared_ptr1_deleter_interface *pd) : ref_count(r), p_del(pd) {};
-		int ref_count;                          // Pointer to the reference counter. If NULL or *ref_count==0 => reference count=1
+		int ref_count;                          // Pointer to the reference counter. If nullptr or *ref_count==0 => reference count=1
 		shared_ptr1_deleter_interface *p_del;   // Pointer to the custom deleter
 	};
 }
@@ -211,13 +211,19 @@ shared_ptr1<T> static_pointer_cast1(shared_ptr1<U> &);
 template<typename T, typename U>
 shared_ptr1<T> dynamic_pointer_cast1(shared_ptr1<U> &);
 
+template<typename T, typename U>
+shared_ptr1<T> const_pointer_cast1(const shared_ptr1<U> &);
+
+template<typename T, typename U>
+shared_ptr1<T> reinterpret_pointer_cast1(shared_ptr1<U> &);
+
 template <typename T>
 class shared_ptr1
 {
 public:
 	typedef T value_type;
 
-	explicit shared_ptr1(T* ptr_ = NULL) NOEXCEPT;
+	explicit shared_ptr1(T* ptr_ = nullptr) NOEXCEPT;
 	shared_ptr1(const shared_ptr1& p);
 
 #ifdef ENABLE_TEMPLATE_OVERLOADS
@@ -232,13 +238,13 @@ public:
 #endif
 	~shared_ptr1() NOEXCEPT;
 
-	void reset(T* p = NULL) NOEXCEPT;
+	void reset(T* p = nullptr) NOEXCEPT;
 #ifdef ENABLE_TEMPLATE_OVERLOADS
 	template <typename U>
 	void reset(U* p) NOEXCEPT;
 #endif
 	T* get() const NOEXCEPT;
-	T* release();                                     // Releases the pointer (if not unique returns NULL);
+	T* release();                                     // Releases the pointer (if not unique returns nullptr);
 	void swap(shared_ptr1& p) NOEXCEPT;
 
 	bool unique() const NOEXCEPT;
@@ -270,6 +276,10 @@ public:
 	friend shared_ptr1<U1> static_pointer_cast1(shared_ptr1<U2>&);
 	template<typename U1, typename U2>
 	friend shared_ptr1<U1> dynamic_pointer_cast1(shared_ptr1<U2>&);
+	template<typename U1, typename U2>
+	friend shared_ptr1<U1> const_pointer_cast1(const shared_ptr1<U2>&);
+	template<typename U1, typename U2>
+	friend shared_ptr1<U1> reinterpret_pointer_cast1(shared_ptr1<U2>&);
 private:
 	T* ptr;                                           // Pointer to the object itself
 	mutable details::shared_ptr_details *d;           // Pointer to reference counter + custom deleter
@@ -289,19 +299,19 @@ template<typename T, typename U>
 shared_ptr1<T> static_pointer_cast1(shared_ptr1<U> &pu)
 {
 	shared_ptr1<T> pt;
+	if (pu.ptr == nullptr)
+		return pt;
 	pt.ptr = static_cast<T *> (pu.ptr);
 	if (pu.d == nullptr)
-		pu.d = new details::shared_ptr_details(1, nullptr);
+		pu.d = new details::shared_ptr_details(1, nullptr); // 2 references
 	else
 		++(pu.d->ref_count); // >2 references
 	pt.d = pu.d;
-	/*if (pu.p_del == NULL && !details::shared_ptr1_is_same<T, U>().value)
+	if (pu.d->p_del == nullptr && !details::shared_ptr1_is_same<T, U>().value)
 	{
-	details::shared_ptr1_default_deleter<U> *pDel = new details::shared_ptr1_default_deleter<U>(pu.ptr);
-	pt.p_del = static_cast<details::shared_ptr1_deleter_interface *> (pDel);
+		details::shared_ptr1_default_deleter<U> *pDel = new details::shared_ptr1_default_deleter<U>(pu.ptr);
+		pt.d->p_del = static_cast<details::shared_ptr1_deleter_interface *> (pDel);
 	}
-	else
-	pt.p_del = pu.p_del;*/
 	return pt;
 }
 
@@ -309,26 +319,61 @@ template<typename T, typename U>
 shared_ptr1<T> dynamic_pointer_cast1(shared_ptr1<U> &pu)
 {
 	shared_ptr1<T> pt;
+	if (pu.ptr == nullptr)
+		return pt;
 	pt.ptr = dynamic_cast<T *>(pu.ptr);
 	if (pu.d == nullptr)
-		pu.d = new details::shared_ptr_details(1, nullptr);
+		pu.d = new details::shared_ptr_details(1, nullptr); // 2 references
 	else
 		++(pu.d->ref_count); // >2 references
 	pt.d = pu.d;
-	/*if (pu.p_del == NULL && !details::shared_ptr1_is_same<T, U>().value)
+	if (pu.d->p_del == nullptr && !details::shared_ptr1_is_same<T, U>().value)
 	{
-	details::shared_ptr1_default_deleter<U> *pDel = new details::shared_ptr1_default_deleter<U>(pu.ptr);
-	pt.p_del = static_cast<details::shared_ptr1_deleter_interface *> (pDel);
+		details::shared_ptr1_default_deleter<U> *pDel = new details::shared_ptr1_default_deleter<U>(pu.ptr);
+		pt.d->p_del = static_cast<details::shared_ptr1_deleter_interface *> (pDel);
 	}
+	return pt;
+}
+
+template<typename T, typename U>
+shared_ptr1<T> const_pointer_cast1(const shared_ptr1<U> &pu)
+{
+	shared_ptr1<T> pt;
+	if (pu.ptr == nullptr)
+		return pt;
+	pt.ptr = const_cast<T *>(pu.ptr);
+	if (pu.d == nullptr)
+		pu.d = new details::shared_ptr_details(1, nullptr); // 2 references
 	else
-	pt.p_del = pu.p_del;*/
+		++(pu.d->ref_count); // >2 references
+	pt.d = pu.d;
+	return pt;
+}
+
+template<typename T, typename U>
+shared_ptr1<T> reinterpret_pointer_cast1(shared_ptr1<U> &pu)
+{
+	shared_ptr1<T> pt;
+	if (pu.ptr == nullptr)
+		return pt;
+	pt.ptr = reinterpret_cast<T *>(pu.ptr);
+	if (pu.d == nullptr)
+		pu.d = new details::shared_ptr_details(1, nullptr); // 2 references
+	else
+		++(pu.d->ref_count); // >2 references
+	pt.d = pu.d;
+	if (pu.d->p_del == nullptr && !details::shared_ptr1_is_same<T, U>().value)
+	{
+		details::shared_ptr1_default_deleter<U> *pDel = new details::shared_ptr1_default_deleter<U>(pu.ptr);
+		pt.d->p_del = static_cast<details::shared_ptr1_deleter_interface *> (pDel);
+	}
 	return pt;
 }
 
 // --------------------------- Implementation of general case ----------------------------------
 
 template <typename T>
-shared_ptr1<T>::shared_ptr1(T* ptr_/* = NULL*/) NOEXCEPT
+shared_ptr1<T>::shared_ptr1(T* ptr_/* = nullptr */) NOEXCEPT
 	: ptr(ptr_)
 	, d(nullptr)
 {
@@ -579,9 +624,17 @@ void shared_ptr1<T>::decrement() NOEXCEPT
 			}
 			else
 			{
-				d->p_del->destroy();
-				delete d->p_del;
+				if (d->p_del->is_make_shared())
+				{
+					// The pointer was allocated using make_shared1(), it should be destroyed in a special way					
+				}
+				else
+				{
+					d->p_del->destroy();
+					delete d->p_del;
+				}
 			}
+			delete d;
 		}
 		else d->ref_count--;
 	}
@@ -599,7 +652,7 @@ class shared_ptr1 < T[] >
 public:
 	typedef T value_type;
 
-	explicit shared_ptr1(T* ptr_ = NULL) NOEXCEPT;
+	explicit shared_ptr1(T* ptr_ = nullptr) NOEXCEPT;
 
 	shared_ptr1(const shared_ptr1& p);
 #ifdef ENABLE_MOVE_SEMANTICS
@@ -607,9 +660,9 @@ public:
 #endif
 	~shared_ptr1() NOEXCEPT;
 
-	void reset(T* p = NULL) NOEXCEPT;
+	void reset(T* p = nullptr) NOEXCEPT;
 	T* get() const NOEXCEPT;
-	T* release();                                     // Releases the pointer (if not unique returns NULL);
+	T* release();                                     // Releases the pointer (if not unique returns nullptr);
 	void swap(shared_ptr1& p) NOEXCEPT;
 
 	bool unique() const NOEXCEPT;
@@ -634,18 +687,18 @@ private:
 };
 
 template <typename T>
-inline shared_ptr1<T[]>::shared_ptr1(T* ptr_/* = NULL*/) NOEXCEPT
+shared_ptr1<T[]>::shared_ptr1(T* ptr_/* = nullptr*/) NOEXCEPT
 	: ptr(ptr_)
-	, ref_count(NULL)
+	, ref_count(nullptr)
 {
 }
 
 template <typename T>
-inline shared_ptr1<T[]>::shared_ptr1(const shared_ptr1<T[]>& p)
+shared_ptr1<T[]>::shared_ptr1(const shared_ptr1<T[]>& p)
 	: ptr(p.ptr)
 	, ref_count(p.ref_count)
 {
-	if (p.ref_count == NULL)
+	if (p.ref_count == nullptr)
 		p.ref_count = new int(1); // 2 references
 	else
 		++(*p.ref_count); // >2 references
@@ -654,54 +707,54 @@ inline shared_ptr1<T[]>::shared_ptr1(const shared_ptr1<T[]>& p)
 
 #ifdef ENABLE_MOVE_SEMANTICS
 template <typename T>
-inline shared_ptr1<T[]>::shared_ptr1(shared_ptr1<T[]>&& p) NOEXCEPT
+shared_ptr1<T[]>::shared_ptr1(shared_ptr1<T[]>&& p) NOEXCEPT
 	: ptr(p.ptr)
 	, ref_count(p.ref_count)
 {
-	p.ptr = NULL;
-	p.ref_count = NULL;
+	p.ptr = nullptr;
+	p.ref_count = nullptr;
 }
 #endif
 
 template <typename T>
-inline shared_ptr1<T[]>::~shared_ptr1() NOEXCEPT
+shared_ptr1<T[]>::~shared_ptr1() NOEXCEPT
 {
 	decrement();
 }
 
 template <typename T>
-inline T* shared_ptr1<T[]>::get() const NOEXCEPT
+T* shared_ptr1<T[]>::get() const NOEXCEPT
 {
 	return ptr;
 }
 
 template <typename T>
-inline T* shared_ptr1<T[]>::release()
+T* shared_ptr1<T[]>::release()
 {
-	if (!unique()) return NULL;
+	if (!unique()) return nullptr;
 	T* p = ptr;
 	delete ref_count;
-	ref_count = NULL;
-	ptr = NULL;
+	ref_count = nullptr;
+	ptr = nullptr;
 	return p;
 }
 
 template <typename T>
-inline bool shared_ptr1<T[]>::unique() const NOEXCEPT
+bool shared_ptr1<T[]>::unique() const NOEXCEPT
 {
-	return ref_count == NULL || (*ref_count) == 0;
+	return ref_count == nullptr || (*ref_count) == 0;
 }
 
 template <typename T>
-inline int shared_ptr1<T[]>::use_count() const NOEXCEPT
+int shared_ptr1<T[]>::use_count() const NOEXCEPT
 {
-	if (ref_count == NULL)
-	return ptr == NULL ? 0 : 1;
+	if (ref_count == nullptr)
+	return ptr == nullptr ? 0 : 1;
 	return (*ref_count) + 1;
 }
 
 template <typename T>
-inline void shared_ptr1<T[]>::swap(shared_ptr1<T[]>& p) NOEXCEPT
+void shared_ptr1<T[]>::swap(shared_ptr1<T[]>& p) NOEXCEPT
 {
 	T* temp_ptr = ptr;
 	int* temp_ref_count = ref_count;
@@ -714,7 +767,7 @@ inline void shared_ptr1<T[]>::swap(shared_ptr1<T[]>& p) NOEXCEPT
 }
 
 template <typename T>
-inline void shared_ptr1<T[]>::reset(T* p/*=NULL*/) NOEXCEPT
+void shared_ptr1<T[]>::reset(T* p/*=nullptr*/) NOEXCEPT
 {
 	if (ptr == p) return;
 	shared_ptr1<T> temp(p);
@@ -722,7 +775,7 @@ inline void shared_ptr1<T[]>::reset(T* p/*=NULL*/) NOEXCEPT
 }
 
 template <typename T>
-inline shared_ptr1<T[]>& shared_ptr1<T[]>::operator=(const shared_ptr1<T[]>& p)
+shared_ptr1<T[]>& shared_ptr1<T[]>::operator=(const shared_ptr1<T[]>& p)
 {
 	shared_ptr1<T[]> temp(p);
 	swap(temp);
@@ -731,7 +784,7 @@ inline shared_ptr1<T[]>& shared_ptr1<T[]>::operator=(const shared_ptr1<T[]>& p)
 
 #ifdef ENABLE_MOVE_SEMANTICS
 template <typename T>
-inline shared_ptr1<T[]>& shared_ptr1<T[]>::operator=(shared_ptr1<T[]>&& p) NOEXCEPT
+shared_ptr1<T[]>& shared_ptr1<T[]>::operator=(shared_ptr1<T[]>&& p) NOEXCEPT
 {
 	swap(p);
 	return *this;
@@ -739,13 +792,13 @@ inline shared_ptr1<T[]>& shared_ptr1<T[]>::operator=(shared_ptr1<T[]>&& p) NOEXC
 #endif
 
 template <typename T>
-inline bool shared_ptr1<T[]>::operator< (const shared_ptr1<T[]> &rhs) const NOEXCEPT
+bool shared_ptr1<T[]>::operator< (const shared_ptr1<T[]> &rhs) const NOEXCEPT
 {
 	return ptr < rhs.ptr;
 }
 
 template <typename T>
-inline bool shared_ptr1<T[]>::operator== (const shared_ptr1<T[]> &rhs) const NOEXCEPT
+bool shared_ptr1<T[]>::operator== (const shared_ptr1<T[]> &rhs) const NOEXCEPT
 {
 	return ptr == rhs.ptr;
 }
@@ -753,25 +806,25 @@ inline bool shared_ptr1<T[]>::operator== (const shared_ptr1<T[]> &rhs) const NOE
 template <typename T>
 inline shared_ptr1<T[]>::operator bool() const NOEXCEPT
 {
-	return ptr != NULL;
+	return ptr != nullptr;
 }
 
 template <typename T>
-inline T& shared_ptr1<T[]>::operator[](size_t idx) NOEXCEPT
+T& shared_ptr1<T[]>::operator[](size_t idx) NOEXCEPT
 {
 	return ptr[idx];
 }
 
 template <typename T>
-inline const T& shared_ptr1<T[]>::operator[](size_t idx) const NOEXCEPT
+const T& shared_ptr1<T[]>::operator[](size_t idx) const NOEXCEPT
 {
 	return ptr[idx];
 }
 
 template <typename T>
-inline void shared_ptr1<T[]>::decrement() NOEXCEPT
+void shared_ptr1<T[]>::decrement() NOEXCEPT
 {
-	if (ref_count != NULL)
+	if (ref_count != nullptr)
 	{
 		if (*ref_count == 0)
 		{
@@ -805,7 +858,7 @@ struct smart_file_deleter
 {
 	void operator()(T* p)
 	{
-		if (p != NULL)
+		if (p != nullptr)
 			fclose(p);
 	}
 };
