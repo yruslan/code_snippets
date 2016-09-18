@@ -181,6 +181,24 @@ namespace details
 		T* ptr;
 	};
 
+	template<typename T>
+	struct shared_ptr1_default_ms_deleter : public shared_ptr1_deleter_interface
+	{
+		shared_ptr1_default_ms_deleter(T* ptr_)
+			: ptr(ptr_)
+		{
+		}
+		void destroy() override
+		{
+			ptr->~T();
+		}
+		bool is_make_shared() override
+		{
+			return true;
+		};
+		T* ptr;
+	};
+
 #ifdef ENABLE_TEMPLATE_OVERLOADS
 	template<class T, class U>
 	struct shared_ptr1_is_same {
@@ -204,6 +222,9 @@ namespace details
 
 template <typename T>
 class shared_ptr1;
+
+template<typename T>
+shared_ptr1<T> make_shared1();
 
 template<typename T, typename U>
 shared_ptr1<T> static_pointer_cast1(shared_ptr1<U> &);
@@ -272,6 +293,8 @@ public:
 #ifdef ENABLE_TEMPLATE_OVERLOADS
 	template <typename U1> friend class shared_ptr1;
 #endif
+	template<typename U1>
+	friend shared_ptr1<U1> make_shared1();
 	template<typename U1, typename U2>
 	friend shared_ptr1<U1> static_pointer_cast1(shared_ptr1<U2>&);
 	template<typename U1, typename U2>
@@ -292,7 +315,19 @@ private:
 template<typename T>
 shared_ptr1<T> make_shared1()
 {
-	return shared_ptr1<T>(new T());
+	shared_ptr1<T> po;
+
+	size_t s1 = sizeof(details::shared_ptr_details);
+	size_t s2 = sizeof(details::shared_ptr1_default_ms_deleter<T>);
+	size_t sz = s1 + s2 + sizeof(T);
+
+	char *p = (char *)::operator new (sz);
+    T* pt = new (p + s1 + s2) T();
+	details::shared_ptr1_default_ms_deleter<T> *pd = new (p + s1)details::shared_ptr1_default_ms_deleter<T>(pt);
+	details::shared_ptr_details *pr = new(p) details::shared_ptr_details(0, pd);
+	po.d = pr;
+	po.ptr = pt;
+	return po;
 }
 
 template<typename T, typename U>
@@ -621,20 +656,25 @@ void shared_ptr1<T>::decrement() NOEXCEPT
 			if (d->p_del == nullptr)
 			{
 				delete ptr;
+				delete d;
 			}
 			else
 			{
+				d->p_del->destroy();
 				if (d->p_del->is_make_shared())
 				{
-					// The pointer was allocated using make_shared1(), it should be destroyed in a special way					
+					// The pointer was allocated using make_shared1(), it should be destroyed in a special way
+					void *raw = d;
+					d->p_del->~shared_ptr1_deleter_interface();
+					d->~shared_ptr_details();
+					:: operator delete (raw);
 				}
 				else
 				{
-					d->p_del->destroy();
 					delete d->p_del;
+					delete d;
 				}
 			}
-			delete d;
 		}
 		else d->ref_count--;
 	}
