@@ -3,10 +3,9 @@
 
 #include <stdio.h>
 #include <vector>
+#include "rng.h"
 
 typedef void (*FnBenchKernel)(void);
-
-class CRng;
 
 class CStatistics
 {
@@ -66,6 +65,9 @@ public:
 	// Note. Number of samples in both sets should be >3 in each group
 	// Returns -1 on error
 	float Test_CompareMeans(const CStatistics &st);
+
+	// T-test. Compare medians (nested experiment). Returns significance of the difference.
+	float Test_CompareMedians(const CStatistics &st);
 
 	// T-test as the previous one. But in this tests outliers are automatically
 	// removed increasing consistancy of the test.

@@ -392,6 +392,35 @@ float CStatistics::Test_CompareMeans(const CStatistics &st)
 	return (1.f-fP0)*2.f;
 }
 
+float CStatistics::Test_CompareMedians(const CStatistics &st)
+{
+	if (GetCount() < 3. || st.GetCount() < 3.)
+		return 0.;
+
+	double fN1 = double(GetCount());
+	double fN2 = double(st.GetCount());
+	double fVariance1 = GetVariance();
+	double fVariance2 = st.GetVariance();
+	float fStat = (float)(fabs(GetMedian() - st.GetMedian()) / sqrt(fVariance1 / fN1 + fVariance2 / fN2));
+	int df = GetCount() + st.GetCount() - 2;
+
+	float fP0 = 0.f;
+	if (df < 40)
+	{
+		if (fStat > 50.) return 0.;
+		fP0 = CDF_Student(fStat, df);
+	}
+	else
+	{
+		if (fStat > 8.) return 0.;
+		fP0 = CDF_StdNormal(fStat);
+	}
+
+	//printf("df=%d, fP0=%g, t=%g\n", df, fP0, fStat);
+
+	return (1.f - fP0)*2.f;
+}
+
 float CStatistics::Test_CompareMeans_Outliers(const CStatistics &st)
 {
 	if (GetCount()<5 || st.GetCount()<5)
